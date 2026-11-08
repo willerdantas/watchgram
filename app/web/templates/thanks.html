@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pagamento recebido</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main class="narrow">
+  <div class="card login" style="text-align:center">
+    <h1>Tudo certo!</h1>
+    <p>Assim que o pagamento for confirmado, o bot envia seu acesso no Telegram.</p>
+    {% if bot_username %}<a class="btn primary" href="https://t.me/{{ bot_username }}">Voltar ao Telegram</a>{% endif %}
+  </div>
+</main>
+</body>
+</html>

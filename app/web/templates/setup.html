@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Primeiros passos{% endblock %}
+{% block help %}
+<h2>Como funciona: Primeiros passos</h2>
+<ul>
+  <li>Em 3 etapas o seu bot fica pronto para vender: conectar o bot, escolher o grupo e dizer como quer receber.</li>
+  <li>Você pode sair e voltar quando quiser. O que já foi feito fica salvo, e tudo pode ser mudado depois em Configurações.</li>
+  <li>Na etapa 2 o grupo só aparece depois que você adiciona o bot a ele como administrador.</li>
+</ul>
+{% endblock %}
+{% block content %}
+<div class="wizard">
+  <h1>Primeiros passos {% include "_help_button.html" %}</h1>
+  <div class="progress" aria-hidden="true"><div style="width: {{ percent }}%"></div></div>
+  <ol class="wizard-steps" aria-label="Etapas">
+    {% for s in steps %}
+    <li class="{{ 'done' if s.done }}{{ ' current' if s.number == step }}"{% if s.number == step %} aria-current="step"{% endif %}>
+      <a href="/primeiros-passos?etapa={{ s.number }}"><span class="mark">{% if s.done %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Concluída"><path d="M20 6 9 17l-5-5"/></svg>{% else %}{{ s.number }}{% endif %}</span>{{ s.name }}</a>
+    </li>
+    {% endfor %}
+  </ol>
+
+  {% if step == 1 %}
+  <section class="stack">
+    <h2 class="step-title">Conecte o seu bot do Telegram</h2>
+    <p class="muted">É rápido e não precisa instalar nada. Faça assim no Telegram:</p>
+    <ol class="tutorial">
+      <li class="card"><div class="shot" aria-hidden="true"><span class="bubble-mini">@BotFather</span></div><p><b>1.</b> Abra o Telegram e procure por <b>@BotFather</b>.</p>
+        <a class="btn" href="https://t.me/BotFather" target="_blank" rel="noopener">Abrir o @BotFather</a></li>
+      <li class="card"><div class="shot" aria-hidden="true"><span class="bubble-mini">/newbot</span></div><p><b>2.</b> Envie <code>/newbot</code> e escolha um nome para o seu bot.</p></li>
+      <li class="card"><div class="shot" aria-hidden="true"><span class="bubble-mini">123456:ABC...</span></div><p><b>3.</b> Ele responde com um código longo. Copie e cole aqui embaixo.</p></li>
+    </ol>
+    {% if bot_username %}<p class="flash ok">Seu bot @{{ bot_username }} está conectado.</p>{% endif %}
+    <form method="post" action="/primeiros-passos/bot" class="card stack">
+      <label>Código do seu bot
+        <input name="bot_token" autocomplete="off" required placeholder="{{ '•••••••• já salvo. Cole outro para trocar' if has_token else '123456789:ABC-DEF...' }}">
+      </label>
+      <button class="btn primary btn-lg">Conectar o bot</button>
+    </form>
+    {% if has_token %}<a class="btn" href="/primeiros-passos?etapa=2">Pular, o bot já está conectado</a>{% endif %}
+  </section>
+
+  {% elif step == 2 %}
+  <section class="stack">
+    <h2 class="step-title">Escolha o seu grupo ou canal VIP</h2>
+    <ol class="plain-steps">
+      <li>Abra o seu grupo no Telegram e toque no nome dele.</li>
+      <li>Toque em <b>Administradores</b> e adicione o seu bot{% if bot_username %} (<b>@{{ bot_username }}</b>){% endif %}.</li>
+      <li>Deixe ligadas as permissões de <b>convidar usuários</b> e <b>banir usuários</b>.</li>
+    </ol>
+    {% if settings.detected_chats %}
+      <p class="muted">Encontramos estes grupos. Toque no seu:</p>
+      <div class="choice-list">
+        {% for c in settings.detected_chats %}
+        <form method="post" action="/primeiros-passos/grupo/{{ c.id }}">
+          <button class="choice {{ 'chosen' if c.id == settings.group_chat_id }}">
+            <span><b>{{ c.title or c.id }}</b><small class="muted">{{ 'canal' if c.type == 'channel' else 'grupo' }}{{ ' · bot é administrador' if c.is_admin else ' · falta tornar o bot administrador' }}</small></span>
+            {% if c.id == settings.group_chat_id %}<span class="tag ok">escolhido</span>{% endif %}
+          </button>
+        </form>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="card">{% set empty_title = "Nenhum grupo encontrado ainda" %}{% set empty_text = "Depois de adicionar o bot ao grupo, toque em Atualizar a lista." %}{% include "_empty.html" %}</div>
+    {% endif %}
+    <div class="actions">
+      <a class="btn" href="/primeiros-passos?etapa=2">Atualizar a lista</a>
+      <a class="btn" href="/primeiros-passos?etapa=1">Voltar</a>
+      {% if settings.group_chat_id %}<a class="btn primary" href="/primeiros-passos?etapa=3">Continuar</a>{% endif %}
+    </div>
+  </section>
+
+  {% else %}
+  <section class="stack">
+    <h2 class="step-title">Como você quer receber?</h2>
+    <form method="post" action="/primeiros-passos/receber" class="stack">
+      <div class="card stack">
+        <h3 class="h3">Pela sua chave Pix</h3>
+        <p class="muted">O assinante paga e envia o comprovante. Você aprova com um toque.</p>
+        <div class="row">
+          <label>Chave Pix <input name="pix_key" value="{{ settings.pix_key }}" placeholder="e-mail, celular ou chave aleatória"></label>
+          <label>Nome do titular <input name="pix_holder" value="{{ settings.pix_holder }}"></label>
+        </div>
+      </div>
+      <div class="card stack">
+        <h3 class="h3">Pelo Mercado Pago (liberação automática)</h3>
+        <p class="muted">No Mercado Pago, abra <b>Suas integrações → Credenciais</b> e copie o código de produção.</p>
+        <label>Código de acesso do Mercado Pago
+          <input name="mp_access_token" type="password" autocomplete="off" placeholder="{{ '•••••••• já salvo' if has_mp else 'APP_USR-...' }}">
+        </label>
+      </div>
+      <div class="card stack">
+        <h3 class="h3">Quem recebe os avisos de venda</h3>
+        <label>Seu número no Telegram
+          <textarea name="admin_ids" rows="2" placeholder="123456789 @seu_usuario">{{ settings['admin_ids'] }}</textarea>
+          <small class="muted">Envie <code>/id</code> para o seu bot e ele responde com o seu número.</small>
+        </label>
+      </div>
+      <div class="actions">
+        <a class="btn" href="/primeiros-passos?etapa=2">Voltar</a>
+        <button class="btn primary btn-lg">Concluir</button>
+      </div>
+    </form>
+  </section>
+  {% endif %}
+  <p class="muted"><a href="/">Fazer isso depois</a></p>
+</div>
+{% endblock %}

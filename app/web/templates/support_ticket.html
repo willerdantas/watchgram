@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Ajuda #{{ ticket.id }}{% endblock %}
+{% block help %}
+<h2>Como funciona: conversa de ajuda</h2>
+<ul>
+  <li>Esta é a conversa do pedido #{{ ticket.id }}. Todas as mensagens ficam guardadas, inclusive depois de encerrado.</li>
+  {% if user.is_superadmin %}
+  <li>Ao enviar uma resposta, o usuário é avisado e tem <b>48 horas</b> para aprovar a solução ou dizer que não resolveu.</li>
+  <li>Sem resposta dele nesse prazo, o pedido é encerrado automaticamente.</li>
+  <li>Se ele disser que não resolveu ou mandar outra mensagem, o pedido volta para "Aguardando o suporte".</li>
+  {% else %}
+  <li>Quando o suporte responder, aparecem os botões <b>Aprovar solução</b> e <b>Não resolveu</b>.</li>
+  <li>Você tem <b>48 horas</b> a partir da resposta para decidir. Sem decisão, o pedido é encerrado automaticamente.</li>
+  <li>Você também pode mandar outra mensagem: o pedido volta para o suporte.</li>
+  <li>Pedido encerrado não recebe mensagens. Se precisar, abra um novo em <a href="/ajuda">Ajuda</a>.</li>
+  {% endif %}
+</ul>
+{% endblock %}
+{% block content %}
+<p><a href="/ajuda">← Todos os pedidos</a></p>
+<h1>#{{ ticket.id }} · {{ ticket.subject }} {% include "_help_button.html" %}</h1>
+<p>
+  <span class="tag {{ {'resolved': 'ok', 'answered': 'warn'}.get(ticket.status, '') }}">{{ labels[ticket.status] }}</span>
+  {% if user.is_superadmin %}<span class="muted">· usuário <b>{{ ticket.user.username }}</b> ({{ ticket.user.area_name }})</span>{% endif %}
+  <span class="muted">· aberto em {{ ticket.created_at | datetime }}</span>
+</p>
+
+<div class="card chat">
+  {% for m in ticket.messages %}
+    {% if m.kind == "message" %}
+      <div class="bubble {{ 'staff' if m.is_staff else 'client' }} {{ 'mine' if m.author_id == user.id }}">
+        <div class="bubble-meta">{{ 'Suporte' if m.is_staff else ticket.user.username }} · {{ m.created_at | datetime }}</div>
+        <div class="bubble-text">{{ m.text }}</div>
+      </div>
+    {% else %}
+      <div class="chat-event {{ m.kind }}">
+        {{ {'approved': '✅', 'rejected': '❌ Não resolveu:', 'auto_closed': '⏱'}[m.kind] }} {{ m.text }}
+        <small class="muted">· {{ m.created_at | datetime }}</small>
+      </div>
+    {% endif %}
+  {% endfor %}
+  <span id="fim"></span>
+</div>
+
+{% if ticket.status == "answered" and is_owner %}
+<div class="card" id="decidir">
+  <h2>A resposta resolveu o seu problema?</h2>
+  <p class="muted">Decida até <b>{{ deadline | datetime }}</b>. Sem resposta até lá, o pedido é encerrado automaticamente.</p>
+  <div class="grid2">
+    <form method="post" action="/ajuda/{{ ticket.id }}/aprovar">
+      <button class="btn primary">✅ Aprovar solução e encerrar</button>
+    </form>
+    <form method="post" action="/ajuda/{{ ticket.id }}/recusar" class="stack">
+      <textarea name="text" rows="2" maxlength="{{ max_text }}" placeholder="O que ainda não funciona? (opcional)"></textarea>
+      <button class="btn danger">❌ Não resolveu</button>
+    </form>
+  </div>
+</div>
+{% elif ticket.status == "answered" and user.is_superadmin %}
+<p class="muted">Aguardando o usuário aprovar a solução até {{ deadline | datetime }}.</p>
+{% endif %}
+
+{% if ticket.is_closed %}
+  <div class="flash {{ 'ok' if ticket.status == 'resolved' else 'warn' }}">
+    Pedido encerrado em {{ ticket.closed_at | datetime }}.
+    {% if is_owner %}Precisa de mais ajuda? <a href="/ajuda#novo">Abra um novo pedido</a>.{% endif %}
+  </div>
+{% elif is_owner or user.is_superadmin %}
+<form method="post" action="/ajuda/{{ ticket.id }}/mensagem" class="card" id="responder">
+  <h2>{{ 'Responder ao usuário' if user.is_superadmin else 'Enviar mensagem' }}</h2>
+  <div class="stack">
+    <textarea name="text" rows="4" maxlength="{{ max_text }}" required
+              placeholder="{{ 'Explique a solução. O usuário terá 48 horas para aprovar.' if user.is_superadmin else 'Escreva mais detalhes para o suporte.' }}"></textarea>
+    <div class="actions"><button class="btn primary">{{ 'Enviar resposta' if user.is_superadmin else 'Enviar' }}</button></div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

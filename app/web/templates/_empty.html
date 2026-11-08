@@ -1,0 +1,13 @@
+<div class="empty">
+  <svg width="120" height="90" viewBox="0 0 200 150" fill="none" aria-hidden="true">
+    <rect x="24" y="22" width="152" height="106" rx="14" fill="var(--sunken)"/>
+    <rect x="44" y="42" width="70" height="26" rx="13" fill="var(--card)" stroke="var(--border)"/>
+    <circle cx="58" cy="55" r="6" fill="var(--border)"/>
+    <rect x="70" y="52" width="32" height="6" rx="3" fill="var(--border)"/>
+    <rect x="86" y="82" width="70" height="26" rx="13" fill="var(--accent-soft)"/>
+    <circle cx="100" cy="95" r="6" fill="var(--accent)"/>
+  </svg>
+  <h3>{{ empty_title }}</h3>
+  <p>{{ empty_text }}</p>
+  {% if empty_href %}<a class="btn primary" href="{{ empty_href }}">{{ empty_action }}</a>{% endif %}
+</div>

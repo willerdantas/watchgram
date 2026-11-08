@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Usuários{% endblock %}
+{% block help %}
+<h2>Como funciona: Usuários</h2>
+<p>Cada usuário é um cliente da plataforma com a própria área isolada (bot, grupo, planos, membros). Você não vê os dados das áreas.</p>
+<ul>
+  <li><b>Novo usuário:</b> escolha o login e, se quiser, a senha. Em branco, uma senha é gerada e exibida uma única vez. A conta começa com os dias de teste grátis da Plataforma.</li>
+  <li><b>+ dias:</b> soma dias de assinatura (cortesia ou pagamento recebido por fora).</li>
+  <li><b>Isentar:</b> a área deixa de precisar de assinatura e o bot funciona sem pagamento. "Remover isenção" volta a exigir.</li>
+  <li><b>Nova senha:</b> gera outra senha e encerra as sessões abertas do usuário.</li>
+  <li><b>Desativar:</b> bloqueia o login e para o bot, sem apagar os dados. "Reativar" desfaz.</li>
+  <li><b>Bot:</b> mostra se o bot do usuário está conectado. <b>Assinatura:</b> até quando está paga, se vence, ou se é automática.</li>
+</ul>
+{% endblock %}
+{% block content %}
+<h1>Usuários {% include "_help_button.html" %}</h1>
+<div class="card">
+  <p>Cada usuário tem a <b>própria área</b>: bot, grupo, Mercado Pago, planos, mensagens, membros, pagamentos e
+    estatísticas. Um usuário nunca vê os dados de outro, e esta página também não mostra os dados das áreas.</p>
+</div>
+
+<form method="post" action="/admin/usuarios" class="card">
+  <h2>Novo usuário</h2>
+  <div class="grid3">
+    <label>Usuário (login)
+      <input name="username" required pattern="[a-z0-9][a-z0-9._\-]{2,31}" placeholder="joao.silva"
+             title="3 a 32 caracteres: letras minúsculas, números, ponto, hífen ou _">
+    </label>
+    <label>Nome da área <input name="name" maxlength="128" placeholder="Grupo VIP do João"></label>
+    <label>Senha inicial
+      <input name="password" type="text" minlength="{{ min_password }}" autocomplete="off" placeholder="em branco = gerar automaticamente">
+    </label>
+  </div>
+  <div class="actions"><button class="btn primary">Criar usuário</button></div>
+</form>
+
+<div class="card">
+  <table>
+    <thead><tr><th>Usuário</th><th>Área</th><th>Bot</th><th>Assinatura</th><th>Situação</th><th>Criado em</th><th></th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td><b>{{ u.username }}</b>{% if u.is_superadmin %} <span class="tag">superadmin</span>{% endif %}</td>
+        <td>{{ u.name or "—" }}</td>
+        <td>
+          {% if usernames.get(u.id) %}<span class="tag ok">@{{ usernames[u.id] }}</span>
+          {% elif u.active %}<span class="tag warn" title="{{ errors.get(u.id) or '' }}">desconectado</span>
+          {% else %}—{% endif %}
+        </td>
+        <td>
+          {% if u.exempt %}<span class="tag ok">isento</span>
+          {% elif u.subscription_active %}<span class="tag ok">até {{ u.subscription_until | date }}</span>
+            {% if u.recurring_active %}<span class="tag">🔁 automática</span>{% endif %}
+          {% else %}<span class="tag error">vencida{% if u.subscription_until %} {{ u.subscription_until | date }}{% endif %}</span>{% endif %}
+        </td>
+        <td>{% if u.active %}<span class="tag ok">ativo</span>{% else %}<span class="tag error">desativado</span>{% endif %}</td>
+        <td>{{ u.created_at | date }}</td>
+        <td class="actions">
+          {% if u.id != user.id %}
+          <form method="post" action="/admin/usuarios/{{ u.id }}/dias" class="actions">
+            <input type="number" name="days" value="30" min="1" max="3650" class="xs"><button class="btn sm">+ dias</button>
+          </form>
+          <form method="post" action="/admin/usuarios/{{ u.id }}/isento"
+                data-confirm="{{ 'Remover a isenção de' if u.subscription_exempt else 'Isentar' }} {{ u.username }}{{ '? O bot passa a depender da assinatura.' if u.subscription_exempt else '? O bot funcionará sem assinatura.' }}">
+            <button class="btn sm">{{ 'Remover isenção' if u.subscription_exempt else 'Isentar' }}</button>
+          </form>
+          <form method="post" action="/admin/usuarios/{{ u.id }}/senha" data-confirm="Gerar uma nova senha para {{ u.username }}? A atual deixa de funcionar.">
+            <button class="btn sm">Nova senha</button>
+          </form>
+          <form method="post" action="/admin/usuarios/{{ u.id }}/ativo"
+                data-confirm="{{ 'Desativar' if u.active else 'Reativar' }} {{ u.username }}?">
+            <button class="btn sm">{{ 'Desativar' if u.active else 'Reativar' }}</button>
+          </form>
+          {% else %}<span class="muted">você</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

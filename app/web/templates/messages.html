@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Mensagens{% endblock %}
+{% block help %}
+<h2>Como funciona: Mensagens</h2>
+<p>Aqui você define tudo o que o bot escreve para os assinantes.</p>
+<ul>
+  <li><b>Palavras de entrada:</b> quando o assinante manda uma delas (ex.: "oi", "bom dia"), o bot responde com as boas-vindas e os planos, igual ao <code>/start</code>.</li>
+  <li><b>Mensagens personalizadas:</b> você cria respostas próprias. Defina as palavras-gatilho e o texto; quando o assinante mandar uma delas, o bot responde com o texto. Exemplos: "pix", "suporte", "como funciona". Elas têm prioridade sobre as palavras de entrada.</li>
+  <li><b>Mensagens do sistema:</b> são enviadas automaticamente em cada etapa (boas-vindas, cobrança, pagamento aprovado, lembrete de vencimento...). Edite o texto à vontade; elas não podem ser excluídas, mas "Restaurar padrão" volta ao texto original.</li>
+  <li><b>Marcadores</b> como <code>{nome}</code> e <code>{vencimento}</code> são trocados pelos dados do assinante. Cada mensagem mostra os marcadores que aceita.</li>
+  <li><b>Formatação:</b> use <code>&lt;b&gt;negrito&lt;/b&gt;</code>, <code>&lt;i&gt;itálico&lt;/i&gt;</code> e <code>&lt;code&gt;código&lt;/code&gt;</code>. Uma tag sem fechar faz o Telegram recusar a mensagem: use "Enviar teste" antes.</li>
+  <li><b>Enviar teste</b> manda a mensagem para os admins cadastrados em Configurações (eles precisam ter dado <code>/start</code> no bot).</li>
+</ul>
+{% endblock %}
+{% block content %}
+<h1>Mensagens automáticas {% include "_help_button.html" %}</h1>
+<div class="card">
+  <p>Use os <b>marcadores</b> entre chaves para inserir dados do assinante. A formatação aceita HTML do Telegram:
+    <code>&lt;b&gt;negrito&lt;/b&gt;</code>, <code>&lt;i&gt;itálico&lt;/i&gt;</code>, <code>&lt;code&gt;código&lt;/code&gt;</code>.</p>
+  <p class="muted">Lembretes de vencimento são enviados nos dias configurados em
+    <a href="/config#lembretes">Configurações</a> (atual: <b>{{ reminder_days }}</b> dia(s) antes). Assinantes com recorrência ativa no cartão não recebem lembretes.</p>
+</div>
+
+<form method="post" action="/mensagens/palavras-de-entrada" class="card" id="entrada">
+  <h2>Palavras de entrada</h2>
+  <p>Quando o assinante mandar uma destas palavras ou frases, o bot responde com a mensagem de
+    <a href="#welcome">Boas-vindas</a> e o menu de planos, igual ao <code>/start</code>.
+    Coloque uma por linha.</p>
+  <p class="muted">Maiúsculas, acentos, pontuação e letras repetidas são ignorados, e vale também quando a mensagem
+    <b>começa</b> com a palavra: <code>oi</code> reconhece "Oi", "oiii", "Oi, tudo bem?"; <code>bom dia</code> reconhece "Bom dia!!".</p>
+  <textarea name="start_keywords" rows="8" placeholder="oi&#10;olá&#10;bom dia">{{ start_keywords }}</textarea>
+  <label class="check"><input type="checkbox" name="reply_unknown" value="1" {% if reply_unknown %}checked{% endif %}>
+    Responder outras mensagens com a mensagem <a href="#unknown_text">Mensagem não reconhecida</a> (com botão “Ver planos”)</label>
+  <div class="actions"><button class="btn primary">Salvar palavras de entrada</button></div>
+</form>
+
+<section id="personalizadas">
+<h2 class="section-title">Mensagens personalizadas</h2>
+<p class="muted">Respostas que você cria: quando o assinante mandar uma das palavras-gatilho, o bot responde com o texto.
+  Marcadores: <code>{nome}</code> <code>{saudacao}</code> <code>{suporte}</code></p>
+{% for c in custom %}
+<form method="post" action="/mensagens/personalizadas/{{ c.id }}" class="card" id="custom-{{ c.id }}">
+  <div class="card-head">
+    <h2>{{ c.title }} {% if not c.active %}<span class="tag">inativa</span>{% endif %}</h2>
+    <div class="actions">
+      <button class="btn sm" formaction="/mensagens/personalizadas/{{ c.id }}/testar" formnovalidate>Enviar teste</button>
+      <button class="btn sm danger" formaction="/mensagens/personalizadas/{{ c.id }}/excluir" formnovalidate
+              data-confirm="Excluir a mensagem {{ c.title }}?">Excluir</button>
+    </div>
+  </div>
+  <div class="stack">
+    {% with t=c %}{% include "_custom_message_fields.html" %}{% endwith %}
+    <div class="actions"><button class="btn primary">Salvar</button></div>
+  </div>
+</form>
+{% endfor %}
+<form method="post" action="/mensagens/personalizadas" class="card" id="nova">
+  <h2>Nova mensagem</h2>
+  <div class="stack">
+    {% with t=None %}{% include "_custom_message_fields.html" %}{% endwith %}
+    <div class="actions"><button class="btn primary">Criar mensagem</button></div>
+  </div>
+</form>
+</section>
+
+<h2 class="section-title">Mensagens do sistema</h2>
+<form method="post" action="/mensagens" id="messages">
+  {% for m in items %}
+  <div class="card" id="{{ m.key }}">
+    <div class="card-head">
+      <h2>{{ m.title }}</h2>
+      <div class="actions">
+        <button class="btn sm" formaction="/mensagens/{{ m.key }}/testar" formnovalidate>Enviar teste</button>
+        <button class="btn sm" formaction="/mensagens/{{ m.key }}/restaurar" formnovalidate data-confirm="Restaurar o texto padrão?">Restaurar padrão</button>
+      </div>
+    </div>
+    <textarea name="{{ m.key }}" rows="{{ [m.text.count('\n') + 2, 3] | max }}" required>{{ m.text }}</textarea>
+    <small class="muted">Marcadores: {% for v in m.vars.split() %}<code>{{ v }}</code> {% endfor %}</small>
+  </div>
+  {% endfor %}
+  <div class="sticky-save"><button class="btn primary">Salvar mensagens</button></div>
+</form>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Preços{% endblock %}
+{% block content %}
+<section class="site-wrap section">
+  <h1 class="page-big">Escolha o plano ideal para você</h1>
+  <p class="lead">Todos os planos têm tudo incluído. A diferença é só por quanto tempo você paga de uma vez.{% if trial_days not in ('', '0') %} Comece com {{ trial_days }} dias grátis.{% endif %}</p>
+  {% if plans %}
+  <div class="grid3 pricing">
+    {% for p in plans %}
+    <article class="card price-card {{ 'featured' if loop.index == 2 and plans | length > 2 }}">
+      <h2>{{ p.name }}</h2>
+      <p class="price">{{ p.price_cents | brl }}</p>
+      <p class="muted">a cada {{ p.days }} dias · equivale a {{ (p.price_cents * 30 // p.days) | brl }} por mês</p>
+      <a class="btn {{ 'primary' if loop.index == 2 or plans | length == 1 }}" href="{{ '/cadastro' if signup_open else '/login' }}">{{ 'Começar grátis' if signup_open else 'Entrar' }}</a>
+    </article>
+    {% endfor %}
+  </div>
+  <h2 class="section-title">Compare os planos</h2>
+  <div class="card table-wrap" tabindex="0" aria-label="Tabela de comparação, role para os lados se precisar">
+    <table>
+      <thead><tr><th scope="col">O que está incluído</th>{% for p in plans %}<th scope="col">{{ p.name }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        <tr><th scope="row">Valor</th>{% for p in plans %}<td>{{ p.price_cents | brl }}</td>{% endfor %}</tr>
+        <tr><th scope="row">Duração</th>{% for p in plans %}<td>{{ p.days }} dias</td>{% endfor %}</tr>
+        <tr><th scope="row">Por mês</th>{% for p in plans %}<td>{{ (p.price_cents * 30 // p.days) | brl }}</td>{% endfor %}</tr>
+        <tr><th scope="row">Bot, cobranças e painel</th>{% for p in plans %}<td>Sim</td>{% endfor %}</tr>
+        <tr><th scope="row">Alertas e relatórios</th>{% for p in plans %}<td>Sim</td>{% endfor %}</tr>
+        <tr><th scope="row">Renovação automática no cartão</th>{% for p in plans %}<td>Opcional</td>{% endfor %}</tr>
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card">{% set empty_title = "Os planos ainda não foram definidos" %}{% set empty_text = "Volte em breve." %}{% include "_empty.html" %}</div>
+  {% endif %}
+</section>
+{% endblock %}

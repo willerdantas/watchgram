@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Planos{% endblock %}
+{% block help %}
+<h2>Como funciona: Planos</h2>
+<p>Os planos são as opções que o assinante vê no bot ao mandar <code>/start</code>, <code>/planos</code> ou uma palavra de entrada (como "oi").</p>
+<ul>
+  <li><b>Pagamento único:</b> o assinante paga uma vez (Pix ou cartão) e ganha os dias do plano. Se ainda estiver ativo, os dias são somados ao vencimento atual.</li>
+  <li><b>Recorrente:</b> o cartão é cobrado automaticamente todo mês pelo Mercado Pago (sempre 30 dias). Só aparece se o cartão estiver ativado em Configurações.</li>
+  <li><b>PayPal:</b> preencha o valor na moeda de Configurações (hoje {{ paypal_currency }}) para o plano aceitar PayPal. Em branco, o plano não oferece PayPal. Não há conversão automática: você define o preço. Planos recorrentes não aceitam PayPal.</li>
+  <li><b>Ativo:</b> desmarcado, o plano some do bot, mas quem já assinou continua com o acesso.</li>
+  <li><b>Ordem:</b> número menor aparece primeiro na lista do bot.</li>
+  <li><b>Novo plano:</b> use o formulário no fim da página. O tipo (único ou recorrente) não pode ser trocado depois.</li>
+  <li><b>Excluir:</b> só é possível se o plano nunca foi usado. Plano com membros ou pagamentos deve ser desativado.</li>
+  <li>Mudar o valor vale para as próximas cobranças. Assinaturas recorrentes já autorizadas mantêm o valor antigo.</li>
+</ul>
+{% endblock %}
+{% block content %}
+<h1>Planos e valores {% include "_help_button.html" %}</h1>
+<form method="post" action="/planos" id="planos">
+  <section class="grid2">
+  {% for p in plans %}
+    <div class="card" id="plano-{{ p.code }}">
+      <div class="card-head">
+        <h2>{{ p.name }} {% if p.recurring %}<span class="tag">recorrente · cartão</span>{% endif %}</h2>
+        <label class="switch"><input type="checkbox" name="{{ p.code }}_active" {{ 'checked' if p.active }}> ativo</label>
+      </div>
+      <div class="stack">
+        <label>Nome exibido <input name="{{ p.code }}_name" value="{{ p.name }}" maxlength="64" required></label>
+        <div class="row">
+          <label>Valor (R$) <input name="{{ p.code }}_price" value="{{ '%.2f'|format(p.price_cents / 100) | replace('.', ',') }}" inputmode="decimal" required></label>
+          <label>Duração (dias)
+            <input type="number" name="{{ p.code }}_days" value="{{ p.days }}" min="1" max="{{ max_days }}" {{ 'readonly title="Cobrança mensal: sempre 30 dias"' if p.recurring }}>
+          </label>
+          <label>Ordem <input type="number" name="{{ p.code }}_order" value="{{ p.sort_order }}" class="xs"></label>
+        </div>
+        {% if not p.recurring %}
+        <label>Valor no PayPal ({{ paypal_currency }})
+          <input name="{{ p.code }}_foreign" inputmode="decimal" placeholder="em branco = sem PayPal"
+                 value="{{ '%.2f'|format(p.foreign_price_cents / 100) if p.foreign_price_cents }}">
+        </label>
+        {% endif %}
+        <label>Descrição <textarea name="{{ p.code }}_description" rows="2">{{ p.description }}</textarea></label>
+        <small class="muted">
+          {% if p.recurring %}
+            Cobrado automaticamente todo mês no cartão (assinatura do Mercado Pago). Alterar o valor vale só para novas assinaturas.
+          {% else %}
+            Pagamento único via Pix ou cartão. Equivale a {{ (p.price_cents * 30 // p.days) | brl }} por mês.
+          {% endif %}
+        </small>
+        <div class="actions">
+          <button class="btn sm danger" formaction="/planos/{{ p.code }}/excluir" formnovalidate
+                  data-confirm="Excluir o plano {{ p.name }}?">Excluir plano</button>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="card"><p class="muted">Nenhum plano cadastrado. Crie o primeiro abaixo.</p></div>
+  {% endfor %}
+  </section>
+  {% if plans %}<div class="sticky-save"><button class="btn primary">Salvar planos</button></div>{% endif %}
+</form>
+
+<form method="post" action="/planos/novo" class="card" id="novo">
+  <h2>Novo plano</h2>
+  <div class="stack">
+    <div class="row">
+      <label>Nome <input name="new_name" maxlength="64" required placeholder="Anual VIP"></label>
+      <label>Valor (R$) <input name="new_price" inputmode="decimal" required placeholder="199,90"></label>
+      <label>Duração (dias) <input type="number" name="new_days" value="365" min="1" max="{{ max_days }}"></label>
+    </div>
+    <label>Valor no PayPal ({{ paypal_currency }}, opcional)
+      <input name="new_foreign" inputmode="decimal" placeholder="em branco = sem PayPal">
+    </label>
+    <label>Descrição <textarea name="new_description" rows="2" placeholder="Acesso por 1 ano, pagamento único."></textarea></label>
+    <label class="check"><input type="checkbox" name="new_recurring"> Recorrente: cobrança mensal automática no cartão (a duração fica em 30 dias)</label>
+    <label class="check"><input type="checkbox" name="new_active" checked> Ativo (aparece no bot)</label>
+    <div class="actions"><button class="btn primary">Criar plano</button></div>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Alertas{% endblock %}
+{% block help %}
+<h2>Como funciona: Alertas</h2>
+<ul>
+  <li><b>Quando avisar:</b> escolha de quais acontecimentos você quer saber. Os avisos de comprovante de Pix chegam sempre.</li>
+  <li><b>Muitas saídas em um dia:</b> um único aviso por dia, quando o número de saídas chegar ao limite que você escolher.</li>
+  <li><b>Resumo da semana:</b> chega toda segunda-feira com as entradas, saídas e vendas dos últimos 7 dias.</li>
+  <li><b>Onde avisar:</b> pelo Telegram (para os administradores de Configurações) e/ou por e-mail. O e-mail depende do servidor de envio da plataforma.</li>
+</ul>
+{% endblock %}
+{% block content %}
+<h1>Alertas {% include "_help_button.html" %}</h1>
+<form method="post" action="/alertas" class="narrow-form">
+  <section class="card toggles" aria-labelledby="quando">
+    <h2 id="quando">Quando avisar</h2>
+    {% for key, name, detail in [
+      ("alert_sale", "Nova venda", "A cada pagamento aprovado"),
+      ("alert_joined", "Alguém entrou no grupo", "Um aviso a cada novo membro"),
+      ("alert_left", "Alguém saiu do grupo", "Um aviso a cada saída"),
+      ("alert_exits", "Muitas saídas em um dia", "Quando sair mais gente do que o normal"),
+      ("alert_weekly", "Resumo da semana", "Toda segunda-feira, com os principais números"),
+    ] %}
+    <label class="toggle"><span><span class="toggle-name">{{ name }}</span><small class="muted">{{ detail }}</small></span>
+      <input class="switch-input" type="checkbox" role="switch" name="{{ key }}" {{ 'checked' if settings.flag(key) }}></label>
+    {% endfor %}
+    <label class="toggle-extra">Avisar quando saírem pelo menos
+      <span class="row"><input class="xs" type="number" name="alert_exits_min" min="1" max="10000" value="{{ settings.alert_exits_min }}"> pessoas no mesmo dia</span></label>
+  </section>
+  <section class="card toggles" aria-labelledby="onde">
+    <h2 id="onde">Onde avisar</h2>
+    <label class="toggle"><span><span class="toggle-name">Telegram</span><small class="muted">Para os administradores cadastrados em Configurações</small></span>
+      <input class="switch-input" type="checkbox" role="switch" name="alert_telegram" {{ 'checked' if settings.flag('alert_telegram') }}></label>
+    <label class="toggle"><span><span class="toggle-name">E-mail</span><small class="muted">Para o endereço abaixo</small></span>
+      <input class="switch-input" type="checkbox" role="switch" name="alert_email" {{ 'checked' if settings.flag('alert_email') }}></label>
+    <label class="toggle-extra">E-mail para os alertas <input type="email" name="alert_email_to" value="{{ settings.alert_email_to }}" placeholder="voce@exemplo.com"></label>
+  </section>
+  <button class="btn primary btn-lg">Salvar alterações</button>
+</form>
+{% endblock %}

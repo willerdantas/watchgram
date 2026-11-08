@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Configurações{% endblock %}
+{% block help %}
+<h2>Como funciona: Configurações</h2>
+<p>Liga o seu bot ao Telegram, ao grupo e ao Mercado Pago.</p>
+<ul>
+  <li><b>Token do bot:</b> crie um bot no @BotFather e cole o token. Cada bot só pode ser usado em uma conta.</li>
+  <li><b>Administradores:</b> recebem avisos de venda e comprovantes, e podem usar os comandos de admin no bot. Um por linha, com o id e o @ para identificar. <b>Buscar administradores do grupo</b> preenche a lista com os admins do grupo.</li>
+  <li><b>Grupo / canal VIP:</b> adicione o bot ao grupo como administrador (com permissão de convidar e banir) e clique em "Usar este". A lista de verificação mostra se as permissões estão certas.</li>
+  <li><b>Mercado Pago:</b> o access token recebe os pagamentos na sua conta. Cadastre a URL do webhook no Mercado Pago para confirmação instantânea.</li>
+  <li><b>PayPal:</b> recebe de fora do Brasil, na moeda escolhida. Crie um app em developer.paypal.com, cole o Client ID e o Secret, use "Salvar e testar conexão" e defina o valor de cada plano em Planos. Use o modo Sandbox para testar sem cobrar de verdade. Sua conta PayPal precisa aceitar a moeda escolhida.</li>
+  <li><b>Formas de pagamento:</b> escolha o que o assinante pode usar: Pix automático, cartão (inclui o plano recorrente) e Pix manual na sua chave. No Pix manual você pode ligar o <b>QR Code com o valor do plano</b>: o bot envia a imagem e o copia e cola, mas a liberação continua pelo comprovante.</li>
+  <li><b>Vencimento e lembretes:</b> em quantos dias antes o bot avisa, quantas horas de carência após vencer e se remove do grupo ao expirar.</li>
+  <li>Os campos de token ficam ocultos depois de salvos; deixe em branco para manter.</li>
+</ul>
+{% endblock %}
+{% block content %}
+<h1>Configurações {% include "_help_button.html" %}</h1>
+
+<form method="post" action="/config">
+<section class="grid2">
+
+  <div class="card">
+    <h2>Bot do Telegram</h2>
+    <div class="stack">
+      <label>Token do bot (@BotFather)
+        <input name="bot_token" type="password" autocomplete="off"
+               placeholder="{{ '•••••••• salvo — deixe em branco para manter' if secrets.bot_token else '123456:ABC-DEF...' }}">
+      </label>
+      {% if secrets.bot_token %}<label class="check"><input type="checkbox" name="clear_bot_token"> apagar token salvo</label>{% endif %}
+      <p>Status:
+        {% if bot_username %}<span class="tag ok">conectado como @{{ bot_username }}</span>
+        {% else %}<span class="tag error">{{ bot_error or "desconectado" }}</span>{% endif %}
+      </p>
+      <label>Administradores (um por linha: id e @usuário)
+        <textarea name="admin_ids" rows="3" placeholder="123456789 @seu_usuario">{{ settings['admin_ids'] }}</textarea>
+        <small class="muted">Recebem avisos de venda e comprovantes. Só o número conta; o @ é para você identificar.
+          Descubra seu id enviando /id ao bot.</small>
+      </label>
+      {% if bot_username and settings.group_chat_id %}
+      <button class="btn sm" formaction="/config/admins-do-grupo" formnovalidate>Buscar administradores do grupo</button>
+      {% endif %}
+      <label>Contato de suporte (exibido ao assinante)
+        <input name="support_contact" value="{{ settings.support_contact }}" placeholder="@seu_usuario">
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Grupo / canal VIP</h2>
+    <div class="stack">
+      <label>Chat id do grupo ou canal
+        <input name="group_chat_id" value="{{ settings['group_chat_id'] }}" placeholder="-100...">
+      </label>
+      {% if group_status %}
+        {% if group_status.error %}
+          <p class="tag error">Erro ao acessar o grupo: {{ group_status.error }}</p>
+        {% else %}
+          <ul class="checklist">
+            <li>Grupo: <b>{{ group_status.title }}</b></li>
+            <li class="{{ 'ok' if group_status.is_admin else 'error' }}">Bot é administrador</li>
+            <li class="{{ 'ok' if group_status.can_invite else 'error' }}">Permissão: convidar usuários</li>
+            <li class="{{ 'ok' if group_status.can_ban else 'error' }}">Permissão: banir usuários</li>
+          </ul>
+        {% endif %}
+      {% endif %}
+      {% if settings.detected_chats %}
+        <p class="muted">Grupos onde o bot foi adicionado:</p>
+        <ul class="detected">
+        {% for c in settings.detected_chats %}
+          <li><b>{{ c.title }}</b> <code>{{ c.id }}</code> <small>{{ c.type }}{{ ' · admin' if c.is_admin }}</small>
+            <button class="btn sm" formaction="/config/usar-grupo/{{ c.id }}" formnovalidate>Usar este</button></li>
+        {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Adicione o bot ao grupo como <b>administrador</b> e ele aparecerá aqui.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Mercado Pago</h2>
+    <div class="stack">
+      <label>Access token de produção
+        <input name="mp_access_token" type="password" autocomplete="off"
+               placeholder="{{ '•••••••• salvo — deixe em branco para manter' if secrets.mp_access_token else 'APP_USR-...' }}">
+        <small class="muted">Mercado Pago → Suas integrações → Credenciais. Use TEST-... para testar.</small>
+      </label>
+      {% if secrets.mp_access_token %}<label class="check"><input type="checkbox" name="clear_mp_access_token"> apagar token salvo</label>{% endif %}
+      {% if webhook_url %}
+        <p class="muted">URL do <b>seu</b> webhook para cadastrar no Mercado Pago (eventos <i>Pagamentos</i> e <i>Planos e assinaturas</i>).
+          Com ele o Mercado Pago avisa os pagamentos na hora; sem ele o bot consulta a cada 20 s:<br><code>{{ webhook_url }}</code></p>
+        {% if not secrets.mp_webhook_secret %}
+        <div class="flash warn">Sem a assinatura secreta, qualquer pessoa pode chamar o webhook. Os pagamentos continuam
+          sendo conferidos na API do Mercado Pago, mas copie a assinatura em <i>Suas integrações → Webhooks</i> e cole abaixo.</div>
+        {% endif %}
+      {% else %}
+        <p class="muted">Sem domínio público (PUBLIC_URL), o bot consulta os pagamentos no Mercado Pago a cada 20 s.</p>
+      {% endif %}
+      <label>Assinatura secreta do webhook (opcional)
+        <input name="mp_webhook_secret" type="password" autocomplete="off"
+               placeholder="{{ '•••••••• salva' if secrets.mp_webhook_secret else 'chave secreta das notificações' }}">
+      </label>
+    </div>
+  </div>
+
+  <div class="card" id="paypal">
+    <h2>PayPal (moedas estrangeiras)</h2>
+    <div class="stack">
+      <p class="muted">Para receber de quem está fora do Brasil. O preço de cada plano na moeda escolhida é definido em
+        <a href="/planos">Planos</a>; sem conversão automática.</p>
+      <label class="check"><input type="checkbox" name="enable_paypal" {{ 'checked' if settings.flag('enable_paypal') }}> Aceitar PayPal</label>
+      <label>Client ID
+        <input name="paypal_client_id" value="{{ settings.paypal_client_id }}" autocomplete="off">
+        <small class="muted">developer.paypal.com → Apps &amp; Credentials → crie um app e copie o Client ID e o Secret.</small>
+      </label>
+      <label>Secret
+        <input name="paypal_client_secret" type="password" autocomplete="off"
+               placeholder="{{ '•••••••• salvo — deixe em branco para manter' if secrets.paypal_client_secret else 'Secret do app' }}">
+      </label>
+      {% if secrets.paypal_client_secret %}<label class="check"><input type="checkbox" name="clear_paypal_client_secret"> apagar Secret salvo</label>{% endif %}
+      <label>Moeda de cobrança
+        <select name="paypal_currency">
+          {% for code, label in paypal_currencies.items() %}
+            <option value="{{ code }}" {{ 'selected' if settings.paypal_currency == code }}>{{ code }} · {{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" name="paypal_sandbox" {{ 'checked' if settings.flag('paypal_sandbox') }}> Modo de teste (Sandbox)</label>
+      <button class="btn sm" formaction="/config/testar-paypal" formnovalidate>Salvar e testar conexão</button>
+      {% if paypal_webhook_url %}
+        <p class="muted">URL do <b>seu</b> webhook para cadastrar no app do PayPal (eventos <i>Checkout order approved</i> e
+          <i>Payment capture completed</i>). Com ele a liberação é imediata; sem ele o bot consulta a cada 20 s:<br><code>{{ paypal_webhook_url }}</code></p>
+      {% else %}
+        <p class="muted">Sem domínio público (PUBLIC_URL), o bot consulta os pagamentos no PayPal a cada 20 s.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Formas de pagamento</h2>
+    <div class="stack">
+      <label class="check"><input type="checkbox" name="enable_pix_auto" {{ 'checked' if settings.flag('enable_pix_auto') }}> Pix automático (QR Code do Mercado Pago, liberação imediata)</label>
+      <label class="check"><input type="checkbox" name="enable_card" {{ 'checked' if settings.flag('enable_card') }}> Cartão de crédito (Mercado Pago) — inclui o plano recorrente</label>
+      <label class="check"><input type="checkbox" name="enable_pix_manual" {{ 'checked' if settings.flag('enable_pix_manual') }}> Pix manual na sua chave (o membro envia o comprovante e você aprova)</label>
+      <div class="row">
+        <label>Chave Pix <input name="pix_key" value="{{ settings.pix_key }}" placeholder="e-mail, celular (+55...), CPF/CNPJ ou chave aleatória"></label>
+        <label>Nome do titular <input name="pix_holder" value="{{ settings.pix_holder }}"></label>
+      </div>
+      <label class="check"><input type="checkbox" name="pix_manual_qr" {{ 'checked' if settings.flag('pix_manual_qr') }}> Enviar QR Code e Pix copia e cola já com o valor do plano</label>
+      <label>Cidade do titular <input name="pix_city" value="{{ settings.pix_city }}" placeholder="São Paulo" maxlength="40"></label>
+      <small class="muted">O código é gerado aqui mesmo, a partir da sua chave, sem banco nem API. Como ninguém avisa o bot quando ele é pago, continua sendo Pix manual: o membro envia o comprovante e você aprova em Pagamentos. Use a cidade cadastrada no seu banco; acentos são removidos.</small>
+    </div>
+  </div>
+
+  <div class="card" id="lembretes">
+    <h2>Vencimento e lembretes</h2>
+    <div class="stack">
+      <label>Enviar lembretes quantos dias antes do vencimento
+        <input name="reminder_days" value="{{ settings['reminder_days'] }}" placeholder="7,3,1,0">
+        <small class="muted">Separados por vírgula. 0 = no dia do vencimento.</small>
+      </label>
+      <label>Carência após o vencimento (horas)
+        <input type="number" name="grace_hours" value="{{ settings.grace_hours }}" min="0">
+      </label>
+      <label class="check"><input type="checkbox" name="remove_on_expire" {{ 'checked' if settings.flag('remove_on_expire') }}> Remover do grupo automaticamente ao expirar</label>
+    </div>
+  </div>
+
+</section>
+<div class="sticky-save">
+  <button class="btn primary">Salvar configurações</button>
+  <button class="btn" formaction="/config/reiniciar-bot" formnovalidate>Reiniciar bot</button>
+</div>
+</form>
+{% endblock %}

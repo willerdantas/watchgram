@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+{% block title %}Estatísticas{% endblock %}
+{% block help %}
+<h2>Como funciona: Estatísticas</h2>
+<p>Resumo das vendas e dos assinantes da sua área, atualizado a cada vez que a página abre.</p>
+<ul>
+  <li><b>Assinantes ativos:</b> membros com acesso em dia; entre parênteses, quantos pagam com recorrência no cartão.</li>
+  <li><b>MRR estimado:</b> quanto os assinantes ativos rendem por mês, convertendo cada plano para o valor mensal.</li>
+  <li><b>Receita no mês / ticket médio:</b> pagamentos aprovados no mês atual, comparados com o mês anterior.</li>
+  <li><b>Novos, retornos e renovações:</b> quem assinou pela primeira vez, quem voltou depois de expirar e quem renovou antes de vencer.</li>
+  <li><b>Saídas e churn:</b> assinantes que expiraram no mês e a porcentagem que isso representa.</li>
+  <li><b>Conversão:</b> das cobranças geradas nos últimos 30 dias, quantas foram pagas.</li>
+  <li><b>Vencendo em 7 dias:</b> quem vence logo; quem não tem recorrência recebe os lembretes configurados.</li>
+  <li><b>Seu grupo:</b> quantas pessoas estão no grupo, quem entrou e saiu hoje e a taxa de retenção (de quem estava há 30 dias, quantos ficaram). O gráfico mostra membros novos e os que saíram por dia.</li>
+  <li><b>Atividade recente:</b> o que aconteceu por último, em linguagem simples: entradas, saídas, assinaturas e renovações.</li>
+  <li><b>Primeiros passos:</b> enquanto faltar algo para o bot vender, aparece aqui o que já foi feito e o próximo passo. A lista some quando tudo estiver pronto.</li>
+  <li>Se houver comprovantes de Pix manual esperando, aparece um aviso no topo com o link para conferir.</li>
+</ul>
+{% if user.is_superadmin %}
+<p><b>Para você (superadmin)</b>, a página também mostra os ganhos da plataforma:</p>
+<ul>
+  <li><b>Ganhos totais:</b> soma do que o seu bot vendeu com o que os usuários pagaram de assinatura, no mês e por mês.</li>
+  <li><b>Assinaturas da plataforma:</b> receita, MRR estimado (cada usuário em dia convertido para valor mensal) e receita total. Dias dados por você em Usuários não contam como receita.</li>
+  <li><b>Usuários:</b> pagantes, em teste grátis (ainda não pagaram), vencidos (bot parado), isentos e quem vence nos próximos 7 dias.</li>
+</ul>
+{% endif %}
+{% endblock %}
+{% block content %}
+<h1>Estatísticas {% include "_help_button.html" %}</h1>
+
+{% if setup %}
+<section class="card setup" aria-labelledby="setup-titulo">
+  <h2 id="setup-titulo">Primeiros passos</h2>
+  <p class="muted">{{ setup.done }} de {{ setup.steps | length }} concluídos. Falta pouco para o seu bot começar a vender.</p>
+  <div class="progress" aria-hidden="true"><div style="width: {{ setup.percent }}%"></div></div>
+  <ol>
+    {% for step in setup.steps %}
+    <li class="{{ 'done' if step.done }}">
+      <span class="mark">{% if step.done %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Concluído"><path d="M20 6 9 17l-5-5"/></svg>{% else %}{{ loop.index }}{% endif %}</span>
+      <span>{{ step.label }}</span>
+    </li>
+    {% endfor %}
+  </ol>
+  <a class="btn primary" href="{{ setup.next.href }}">{{ setup.next.action }}</a>
+</section>
+{% endif %}
+
+{% if s.pending_manual %}
+<div class="flash warn">{{ s.pending_manual }} comprovante(s) de Pix aguardando conferência — <a href="/pagamentos?status=pending&method=pix_manual">conferir</a></div>
+{% endif %}
+
+<h2 class="section-title">Seu grupo</h2>
+<section class="kpis" aria-label="Resumo do grupo">
+  {% macro change(value, good_when_up=True, unit="%") %}{% if value is none %}<small>sem comparação ainda</small>{% else %}<small><b class="{{ 'good' if (value >= 0) == good_when_up else 'bad' }}">{{ '↑' if value >= 0 else '↓' }} {{ ('%.1f' % (value | abs)) | replace('.', ',') }}{{ unit }}</b> {{ caller() }}</small>{% endif %}{% endmacro %}
+  <div class="kpi"><span>Membros no grupo</span><strong>{{ g.total }}</strong>{% call change(g.total_change) %}desde o mês passado{% endcall %}</div>
+  <div class="kpi"><span>Entradas hoje</span><strong>{{ g.joined_today }}</strong>{% call change(g.joined_change) %}em relação a ontem{% endcall %}</div>
+  <div class="kpi"><span>Saídas hoje</span><strong>{{ g.left_today }}</strong>{% call change(g.left_change, False) %}em relação a ontem{% endcall %}</div>
+  <div class="kpi"><span>Taxa de retenção</span><strong>{{ ('%.1f%%' % g.retention) | replace('.', ',') if g.retention is not none else '—' }}</strong>{% call change(g.retention_change, True, " pontos") %}quem ficou, desde o mês passado{% endcall %}</div>
+</section>
+<section class="card" aria-labelledby="evolucao">
+  <div class="card-head">
+    <h2 id="evolucao">Evolução de membros</h2>
+    <div class="seg-group" role="group" aria-label="Período do gráfico">
+      {% for d in (7, 30, 90) %}<button type="button" class="seg {{ 'on' if d == 30 }}" aria-pressed="{{ 'true' if d == 30 else 'false' }}" data-dias="{{ d }}">{{ d }} dias</button>{% endfor %}
+    </div>
+  </div>
+  <canvas id="chartMembers" height="110" role="img" aria-label="Membros novos e membros que saíram por dia"></canvas>
+  <details class="numbers"><summary>Ver os números dos últimos 7 dias</summary>
+    <div class="table-wrap"><table><thead><tr><th scope="col">Dia</th><th scope="col">Membros novos</th><th scope="col">Membros que saíram</th></tr></thead>
+    <tbody>{% for d in g.daily[-7:] | reverse %}<tr><td>{{ d.dia }}</td><td>{{ d.novos }}</td><td>{{ d.saidas }}</td></tr>{% endfor %}</tbody></table></div>
+  </details>
+</section>
+<section class="card" aria-labelledby="atividade">
+  <h2 id="atividade">Atividade recente</h2>
+  {% if activity %}
+  <ul class="feed">
+    {% for a in activity %}
+    <li><span class="avatar {{ '' if a.entered else 'out' }}" aria-hidden="true">{{ a.name[:2] | upper }}</span><span><b>{{ a.name }}</b> {{ a.action }}</span><small class="muted">{{ a.when }}</small></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    {% set empty_title = "Nada aconteceu por aqui ainda" %}
+    {% set empty_text = "Quando alguém assinar, entrar ou sair do grupo, aparece aqui em linguagem simples." %}
+    {% set empty_href = None if not setup else "/primeiros-passos" %}
+    {% set empty_action = "Deixar o bot pronto" %}
+    {% include "_empty.html" %}
+  {% endif %}
+</section>
+
+<h2 class="section-title">Vendas</h2>
+{% if p %}
+{% if p.open_tickets %}
+<div class="flash warn">{{ p.open_tickets }} pedido(s) de ajuda aguardando o suporte — <a href="/ajuda">responder</a></div>
+{% endif %}
+<h2 class="section-title">Ganhos totais (bot + plataforma)</h2>
+<section class="kpis">
+  <div class="kpi"><span>Total no mês</span><strong>{{ (s.revenue_month + p.revenue_month) | brl }}</strong>
+    <small>mês anterior {{ (s.revenue_prev + p.revenue_prev) | brl }}</small></div>
+  <div class="kpi"><span>Com o bot</span><strong>{{ s.revenue_month | brl }}</strong><small>{{ s.sales_month }} vendas no mês</small></div>
+  <div class="kpi"><span>Com a plataforma</span><strong>{{ p.revenue_month | brl }}</strong><small>{{ p.sales_month }} assinaturas pagas no mês</small></div>
+  <div class="kpi"><span>MRR somado</span><strong>{{ (s.mrr_cents + p.mrr_cents) | brl }}</strong><small>bot {{ s.mrr_cents | brl }} · plataforma {{ p.mrr_cents | brl }}</small></div>
+</section>
+<section class="card"><h2>Receita mensal: bot + plataforma (6 meses)</h2><canvas id="chartTotal" height="110"></canvas></section>
+
+<h2 class="section-title">Assinaturas da plataforma</h2>
+<section class="kpis">
+  <div class="kpi"><span>Receita no mês</span><strong>{{ p.revenue_month | brl }}</strong><small>mês anterior {{ p.revenue_prev | brl }}</small></div>
+  <div class="kpi"><span>MRR estimado</span><strong>{{ p.mrr_cents | brl }}</strong><small>dos usuários pagantes em dia</small></div>
+  <div class="kpi"><span>Receita total</span><strong>{{ p.revenue_total | brl }}</strong><small>desde o início</small></div>
+  <div class="kpi"><span>Usuários pagantes</span><strong>{{ p.paying }}</strong><small>{{ p.recurring }} com renovação automática</small></div>
+  <div class="kpi"><span>Em teste grátis</span><strong>{{ p.trial }}</strong><small>ainda não pagaram</small></div>
+  <div class="kpi"><span>Vencidos</span><strong>{{ p.expired }}</strong><small>bot parado</small></div>
+  <div class="kpi"><span>Isentos</span><strong>{{ p.exempt }}</strong><small>{{ p.disabled }} desativado(s) · {{ p.users_total }} usuários</small></div>
+  <div class="kpi"><span>Vencendo em 7 dias</span><strong>{{ p.expiring | length }}</strong><small>sem renovação automática</small></div>
+</section>
+<section class="grid2">
+  <div class="card">
+    <h2>Últimos pagamentos da plataforma</h2>
+    {% if p.recent %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Usuário</th><th>Plano</th><th>Valor</th><th>Forma</th><th>Pago em</th></tr></thead>
+      <tbody>
+      {% for r in p.recent %}
+        <tr><td>{{ r.username }}</td><td>{{ r.plan }}</td><td>{{ r.amount_cents | brl }}</td>
+          <td>{{ {'pix': 'Pix', 'card': 'Cartão', 'card_recurring': 'Cartão (automática)'}.get(r.method, r.method) }}</td>
+          <td>{{ r.paid_at | datetime }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% else %}<p class="muted">Nenhum pagamento da plataforma ainda.</p>{% endif %}
+  </div>
+  <div class="card">
+    <h2>Usuários vencendo em 7 dias</h2>
+    {% if p.expiring %}
+    <div class="table-wrap"><table>
+      <thead><tr><th>Usuário</th><th>Vence em</th></tr></thead>
+      <tbody>{% for u in p.expiring %}<tr><td>{{ u.username }}</td><td>{{ u.subscription_until | date }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<p class="muted">Ninguém vence nos próximos 7 dias.</p>{% endif %}
+    <p><a href="/admin/usuarios">Ver todos os usuários →</a></p>
+  </div>
+</section>
+
+<h2 class="section-title">Seu bot</h2>
+{% endif %}
+<section class="kpis">
+  <div class="kpi"><span>Assinantes ativos</span><strong>{{ s.active }}</strong><small>{{ s.recurring_active }} com recorrência no cartão</small></div>
+  <div class="kpi"><span>MRR estimado</span><strong>{{ s.mrr_cents | brl }}</strong><small>receita mensal recorrente</small></div>
+  <div class="kpi"><span>Receita no mês</span><strong>{{ s.revenue_month | brl }}</strong>
+    <small>{{ s.sales_month }} vendas · mês anterior {{ s.revenue_prev | brl }}</small></div>
+  {% for currency, cents in s.foreign_month.items() %}
+  <div class="kpi"><span>PayPal no mês ({{ currency }})</span><strong>{{ cents | money(currency) }}</strong><small>fora da receita em reais</small></div>
+  {% endfor %}
+  <div class="kpi"><span>Ticket médio</span><strong>{{ s.avg_ticket | brl }}</strong><small>no mês</small></div>
+  <div class="kpi"><span>Novos no mês</span><strong>{{ s.new_month }}</strong><small>+{{ s.reactivated_month }} retornos · {{ s.renewals_month }} renovações</small></div>
+  <div class="kpi"><span>Saídas no mês</span><strong>{{ s.churned_month }}</strong><small>churn {{ "%.1f"|format(s.churn_rate) }}%</small></div>
+  <div class="kpi"><span>Conversão (30 dias)</span><strong>{{ "%.0f"|format(s.conversion) }}%</strong><small>cobranças geradas → pagas</small></div>
+  <div class="kpi"><span>Vencendo em 7 dias</span><strong>{{ s.upcoming | length }}</strong><small>sem recorrência recebem lembrete</small></div>
+</section>
+
+<section class="grid2">
+  <div class="card"><h2>Receita diária (30 dias)</h2><canvas id="chartDaily" height="140"></canvas></div>
+  <div class="card"><h2>Receita mensal (6 meses)</h2><canvas id="chartMonthly" height="140"></canvas></div>
+  <div class="card"><h2>Por forma de pagamento (30 dias)</h2>
+    {% if s.chart_method.labels %}<canvas id="chartMethod" height="160"></canvas>{% else %}<p class="muted">Sem vendas no período.</p>{% endif %}</div>
+  <div class="card"><h2>Por plano (30 dias)</h2>
+    {% if s.chart_plan.labels %}<canvas id="chartPlan" height="160"></canvas>{% else %}<p class="muted">Sem vendas no período.</p>{% endif %}</div>
+</section>
+
+<section class="card">
+  <h2>Vencimentos próximos</h2>
+  {% if s.upcoming %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Membro</th><th>Plano</th><th>Vencimento</th><th>Recorrência</th><th></th></tr></thead>
+    <tbody>
+    {% for m in s.upcoming %}
+      <tr>
+        <td>{{ m.display_name }} {% if m.username %}<small class="muted">@{{ m.username }}</small>{% endif %}</td>
+        <td>{{ m.plan_code or "-" }}</td>
+        <td>{{ m.expires_at | date }} {% if m.expires_at < now %}<span class="tag error">em carência</span>{% endif %}</td>
+        <td>{% if m.recurring_status == "authorized" %}<span class="tag ok">automática</span>{% else %}-{% endif %}</td>
+        <td><form method="post" action="/membros/{{ m.id }}/estender" class="inline">
+          <input type="number" name="days" value="30" min="1" class="xs"> <button class="btn sm">+ dias</button></form></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="muted">Nenhum vencimento nos próximos 7 dias.</p>{% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" integrity="sha384-bs/nf9FbdNouRbMiFcrcZfLXYPKiPaGVGplVbv7dLGECccEXDW+S3zjqSKR5ZEaD" crossorigin="anonymous"></script>
+<script nonce="{{ request.state.csp_nonce }}">
+  const css = getComputedStyle(document.documentElement);
+  const accent = css.getPropertyValue("--accent").trim();
+  const text = css.getPropertyValue("--muted").trim();
+  const grid = css.getPropertyValue("--border").trim();
+  const card = css.getPropertyValue("--card").trim();
+  // Ordem fixa, validada para daltonismo: a cor segue a categoria, não a posição no ranking.
+  const palette = [accent, css.getPropertyValue("--warn").trim(), "#2F6FD0", "#9A7B12", "#8A5AAE"];
+  Chart.defaults.color = text;
+  Chart.defaults.borderColor = grid;
+  Chart.defaults.font.family = "Inter, system-ui, sans-serif";
+  const money = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const moneyAxis = { ticks: { callback: money } };
+  const tooltip = { callbacks: { label: (c) => money(c.parsed.y ?? c.parsed) } };
+
+  const daily = {{ s.chart_daily | tojson }};
+  new Chart(document.getElementById("chartDaily"), {
+    type: "line",
+    data: { labels: daily.labels, datasets: [{ data: daily.values, borderColor: accent, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: .3 }] },
+    options: { interaction: { mode: "index", intersect: false }, plugins: { legend: { display: false }, tooltip }, scales: { y: moneyAxis } },
+  });
+  const members = {{ g.daily | tojson }};
+  const membersChart = new Chart(document.getElementById("chartMembers"), {
+    type: "line",
+    data: { labels: [], datasets: [
+      { label: "Membros novos", data: [], borderColor: accent, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: .3 },
+      { label: "Membros que saíram", data: [], borderColor: palette[1], borderDash: [6, 5], borderWidth: 2, pointRadius: 0, pointHoverRadius: 5, tension: .3 },
+    ] },
+    options: { interaction: { mode: "index", intersect: false }, plugins: { legend: { position: "top", align: "start" } },
+               scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+  });
+  function showDays(days) {
+    const rows = members.slice(-days);
+    membersChart.data.labels = rows.map((d) => d.dia);
+    membersChart.data.datasets[0].data = rows.map((d) => d.novos);
+    membersChart.data.datasets[1].data = rows.map((d) => d.saidas);
+    membersChart.update();
+    document.querySelectorAll("[data-dias]").forEach((b) => {
+      const on = Number(b.dataset.dias) === days;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+  document.querySelectorAll("[data-dias]").forEach((b) => b.addEventListener("click", () => showDays(Number(b.dataset.dias))));
+  showDays(30);
+  {% if p %}
+  const total = {{ p.chart_monthly | tojson }};
+  const botMonthly = {{ s.chart_monthly | tojson }};
+  new Chart(document.getElementById("chartTotal"), {
+    type: "bar",
+    data: { labels: total.labels, datasets: [
+      { label: "Bot", data: botMonthly.values, backgroundColor: accent },
+      { label: "Plataforma", data: total.values, backgroundColor: palette[1] },
+    ] },
+    options: { plugins: { tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${money(c.parsed.y)}` } } },
+               scales: { x: { stacked: true }, y: { ...moneyAxis, stacked: true } } },
+  });
+  {% endif %}
+  const monthly = {{ s.chart_monthly | tojson }};
+  new Chart(document.getElementById("chartMonthly"), {
+    type: "bar",
+    data: { labels: monthly.labels, datasets: [{ data: monthly.values, backgroundColor: accent, borderRadius: 4, maxBarThickness: 40 }] },
+    options: { plugins: { legend: { display: false }, tooltip }, scales: { y: moneyAxis } },
+  });
+  for (const [id, d] of [["chartMethod", {{ s.chart_method | tojson }}], ["chartPlan", {{ s.chart_plan | tojson }}]]) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    new Chart(el, {
+      type: "doughnut",
+      data: { labels: d.labels, datasets: [{ data: d.values, backgroundColor: palette, borderColor: card, borderWidth: 2 }] },
+      options: { plugins: { tooltip, legend: { position: "right" } } },
+    });
+  }
+</script>
+{% endblock %}

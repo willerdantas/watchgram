@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Pagamento da assinatura{% endblock %}
+{% block help %}
+<h2>Como funciona: Pagamento da assinatura</h2>
+<ul>
+  <li><b>Pix:</b> leia o QR Code no app do banco ou use o "copia e cola". A confirmação chega em segundos.</li>
+  <li><b>Cartão:</b> clique no link para pagar na página segura do Mercado Pago.</li>
+  <li>Depois de pagar, clique em <b>verificar</b> se a confirmação não aparecer sozinha. Com o pagamento aprovado, os dias são somados e o bot volta a funcionar.</li>
+  <li>Se a cobrança expirar, volte em Assinatura e gere outra.</li>
+</ul>
+{% endblock %}
+{% block content %}
+<h1>Pagamento da assinatura {% include "_help_button.html" %}</h1>
+<div class="card stack">
+  <p><b>{{ plan.name if plan else payment.plan_code }}</b> — {{ payment.amount_cents | brl }} · {{ payment.days }} dias</p>
+  {% if payment.status == 'approved' %}
+    <p>✅ Pagamento confirmado. <a href="/assinatura">Voltar</a></p>
+  {% elif payment.status != 'pending' %}
+    <p>Esta cobrança está {{ PAYMENT_STATUS_LABELS.get(payment.status, payment.status) | lower }}. <a href="/assinatura">Gerar outra</a></p>
+  {% elif payment.method == 'pix' %}
+    {% if payment.pix_qr_base64 %}
+      <img src="data:image/png;base64,{{ payment.pix_qr_base64 }}" alt="QR Code Pix" width="240" height="240">
+    {% endif %}
+    <label>Pix copia e cola
+      <textarea rows="3" readonly data-select-all>{{ payment.pix_code or '' }}</textarea>
+    </label>
+    <small class="muted">O código vale por 30 minutos. A confirmação costuma levar poucos segundos.</small>
+  {% else %}
+    <p><a class="btn primary" href="{{ payment.checkout_url }}" target="_blank" rel="noopener">Pagar com cartão no Mercado Pago</a></p>
+  {% endif %}
+  {% if payment.status == 'pending' %}
+  <form method="post" action="/assinatura/pagamento/{{ payment.id }}/verificar" class="actions">
+    <button class="btn">Já paguei, verificar</button>
+    <a href="/assinatura">Voltar</a>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Criar conta{% endblock %}
+{% block content %}
+<section class="site-wrap auth-box">
+  <h1 class="page-big">Crie sua conta</h1>
+  <p class="lead">{% if trial_days not in ('', '0') %}{{ trial_days }} dias grátis. {% endif %}Depois mostramos como conectar o seu bot em 3 passos.</p>
+  <form method="post" action="/cadastro" class="card stack">
+    <label>Seu nome ou o nome do grupo <input name="name" maxlength="128" autocomplete="name" placeholder="Grupo VIP da Ana"></label>
+    <label>E-mail <input name="email" type="email" autocomplete="email" required placeholder="voce@exemplo.com"></label>
+    <label>Senha <input name="password" type="password" autocomplete="new-password" minlength="{{ min_password }}" required>
+      <small class="muted">Pelo menos {{ min_password }} caracteres.</small></label>
+    <input type="hidden" name="stamp" value="{{ form_stamp }}">
+    <label class="trap" aria-hidden="true">Não preencha <input name="website" tabindex="-1" autocomplete="off"></label>
+    <button class="btn primary btn-lg">Criar conta grátis</button>
+    <p class="muted center">Já tem conta? <a href="/login">Entrar</a></p>
+  </form>
+</section>
+{% endblock %}

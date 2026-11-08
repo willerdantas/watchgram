@@ -1,0 +1,11 @@
+<div class="row">
+  <label>Título (só para você) <input name="title" value="{{ t.title if t }}" maxlength="64" required placeholder="Chave Pix"></label>
+</div>
+<label>Palavras-gatilho (uma por linha)
+  <textarea name="triggers" rows="3" required placeholder="pix&#10;chave pix">{{ t.triggers if t }}</textarea>
+</label>
+<label>Texto da resposta
+  <textarea name="text" rows="4" maxlength="4000" required placeholder="{saudacao}, {nome}! Nossa chave Pix é...">{{ t.text if t }}</textarea>
+</label>
+<label class="check"><input type="checkbox" name="show_plans" {{ 'checked' if t and t.show_plans }}> Mostrar o botão “📋 Ver planos” na resposta</label>
+<label class="check"><input type="checkbox" name="active" {{ 'checked' if not t or t.active }}> Ativa</label>

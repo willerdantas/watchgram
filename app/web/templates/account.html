@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Minha conta{% endblock %}
+{% block help %}
+<h2>Como funciona: Minha conta</h2>
+<ul>
+  <li><b>Nome da área:</b> aparece no topo do painel e no título da aba do navegador.</li>
+  <li><b>Cor de destaque:</b> muda a cor dos botões e links do seu painel.</li>
+  <li><b>Trocar senha:</b> informe a senha atual e a nova (mínimo 8 caracteres). As outras sessões abertas são encerradas.</li>
+  <li>Esqueceu a senha? Peça ao administrador da plataforma para gerar uma nova.</li>
+</ul>
+{% endblock %}
+{% block content %}
+<h1>Minha conta {% include "_help_button.html" %}</h1>
+<div class="grid2">
+  <form method="post" action="/conta" class="card stack">
+    <h2>Personalizar área</h2>
+    <label>Nome da área
+      <input name="name" value="{{ user.name }}" maxlength="128" placeholder="{{ user.username }}">
+      <small class="muted">Aparece no topo do painel e no título da página.</small>
+    </label>
+    <label>Cor de destaque
+      <input type="color" name="accent_color" value="{{ user.accent_color or '#007d64' }}">
+    </label>
+    <div class="actions"><button class="btn primary">Salvar</button></div>
+  </form>
+
+  <form method="post" action="/conta/senha" class="card stack">
+    <h2>Trocar senha</h2>
+    <label>Senha atual <input name="current_password" type="password" autocomplete="current-password" required></label>
+    <label>Nova senha <input name="new_password" type="password" autocomplete="new-password" minlength="8" required></label>
+    <small class="muted">Ao trocar, as outras sessões abertas desta conta são encerradas.</small>
+    <div class="actions"><button class="btn primary">Trocar senha</button></div>
+  </form>
+</div>
+<p class="muted">Usuário: <b>{{ user.username }}</b>{% if user.is_superadmin %} · superadmin{% endif %}</p>
+{% endblock %}

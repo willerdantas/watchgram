@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+data/
+*.db
+
+# Backups, chaves e relatórios exportados nunca vão para o git
+*.dump
+*.sql
+*.bak
+*.pem
+*.key
+relatorio-*.pdf
+relatorio-*.xlsx

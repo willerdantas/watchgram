@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Assinatura{% endblock %}
+{% block help %}
+<h2>Como funciona: Assinatura</h2>
+<p>Para o seu bot funcionar, a sua área precisa de uma assinatura da plataforma em dia.</p>
+<ul>
+  <li><b>Vencida:</b> só o bot para (não responde, não cobra, não remove ninguém). O painel e os seus dados continuam aqui; ao pagar, o bot volta na hora.</li>
+  <li><b>Pix ou cartão:</b> paga um período. Renovar antes do vencimento soma os dias ao vencimento atual.</li>
+  <li><b>Cartão com renovação automática:</b> o Mercado Pago cobra o cartão a cada período e a assinatura se renova sozinha. Se a cobrança atrasar, o bot ainda funciona por 3 dias. Pode cancelar quando quiser.</li>
+  <li><b>E-mail de cobrança:</b> obrigatório para gerar a cobrança; também recebe os lembretes de vencimento.</li>
+  <li><b>Lembretes:</b> antes de vencer, você recebe avisos por e-mail e pelo seu bot (para os administradores de Configurações).</li>
+</ul>
+{% endblock %}
+{% block content %}
+<h1>Assinatura da plataforma {% include "_help_button.html" %}</h1>
+{% if user.is_superadmin %}
+<div class="card"><p>Você é o superadmin: sua área não precisa de assinatura.</p></div>
+{% elif user.exempt %}
+<div class="card"><p>✅ Sua área está <b>isenta</b> da assinatura: o bot funciona sem pagamento.</p></div>
+{% else %}
+<div class="card">
+  {% if user.subscription_active %}
+    <p>✅ Assinatura <b>ativa</b> até <b>{{ user.subscription_until | date }}</b>
+      ({{ user.subscription_days_left }} dia(s)). Renovar agora soma os dias ao vencimento atual.</p>
+    {% if not user.recurring_active %}
+    <p class="muted">Você recebe lembretes por e-mail e pelo seu bot (para os ids de admin em Configurações) antes do vencimento.</p>
+    {% endif %}
+  {% else %}
+    <p>⛔ Assinatura <b>vencida</b>{% if user.subscription_until %} desde {{ user.subscription_until | date }}{% endif %}.
+      Seu <b>bot está parado</b>: ele não responde aos assinantes, não envia lembretes e não remove ninguém do grupo.
+      O painel e os seus dados continuam aqui. Ao pagar, o bot volta a funcionar na hora.</p>
+  {% endif %}
+</div>
+
+{% if user.platform_preapproval_id and user.platform_recurring_status != 'cancelled' %}
+<div class="card">
+  <h2>Renovação automática no cartão</h2>
+  {% if user.recurring_active %}
+    <p>🔁 <b>Ativa</b>: o cartão é cobrado automaticamente a cada período e a assinatura é renovada sozinha.
+      Se uma cobrança falhar, o bot ainda funciona por até 3 dias após o vencimento.</p>
+    <div class="actions">
+      <form method="post" action="/assinatura/recorrencia/verificar"><button class="btn">Verificar cobranças</button></form>
+      <form method="post" action="/assinatura/recorrencia/cancelar" data-confirm="Cancelar a renovação automática? A assinatura continua até o vencimento atual.">
+        <button class="btn">Cancelar renovação automática</button>
+      </form>
+    </div>
+  {% else %}
+    <p>⏳ Aguardando a autorização do cartão no Mercado Pago (situação: {{ user.platform_recurring_status or 'pendente' }}).</p>
+    <form method="post" action="/assinatura/recorrencia/verificar"><button class="btn">Já autorizei, verificar</button></form>
+  {% endif %}
+</div>
+{% endif %}
+
+<form method="post" action="/assinatura/email" class="card">
+  <h2>E-mail de cobrança</h2>
+  <div class="row">
+    <label>E-mail <input type="email" name="email" value="{{ user.email or '' }}" required placeholder="voce@email.com"></label>
+    <div class="actions"><button class="btn">Salvar</button></div>
+  </div>
+  <small class="muted">O Mercado Pago exige um e-mail para gerar a cobrança.</small>
+</form>
+
+{% if not can_pay %}
+  <div class="flash warn">O pagamento online ainda não está disponível. Fale com o suporte da plataforma para renovar.</div>
+{% else %}
+<section class="grid3">
+  {% for p in plans %}
+  <div class="card">
+    <h2>{{ p.name }}</h2>
+    <p class="price">{{ p.price_cents | brl }}</p>
+    <p class="muted">{{ p.days }} dias · equivale a {{ (p.price_cents * 30 // p.days) | brl }}/mês</p>
+    <form method="post" action="/assinatura/pagar" class="actions">
+      <input type="hidden" name="plan_code" value="{{ p.code }}">
+      <button class="btn primary" name="method" value="pix" {{ 'disabled' if not user.email }}>Pagar com Pix</button>
+      <button class="btn" name="method" value="card" {{ 'disabled' if not user.email }}>Cartão</button>
+      {% if not user.recurring_active %}
+      <button class="btn" name="method" value="card_recurring" {{ 'disabled' if not user.email }}
+              title="O cartão é cobrado automaticamente a cada {{ p.days }} dias">Cartão com renovação automática</button>
+      {% endif %}
+    </form>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if history %}
+<div class="card">
+  <h2>Histórico</h2>
+  <table>
+    <thead><tr><th>Data</th><th>Plano</th><th>Dias</th><th>Valor</th><th>Forma</th><th>Situação</th></tr></thead>
+    <tbody>
+    {% for h in history %}
+      <tr>
+        <td>{{ (h.paid_at or h.created_at) | date }}</td>
+        <td>{{ 'Liberação manual' if h.method == 'manual' else h.plan_code }}</td>
+        <td>{{ h.days }}</td>
+        <td>{{ h.amount_cents | brl }}</td>
+        <td>{{ {'pix': 'Pix', 'card': 'Cartão', 'card_recurring': 'Cartão (automático)', 'manual': '—'}.get(h.method, h.method) }}</td>
+        <td>{{ PAYMENT_STATUS_LABELS.get(h.status, h.status) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

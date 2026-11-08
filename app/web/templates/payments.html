@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Pagamentos{% endblock %}
+{% block help %}
+<h2>Como funciona: Pagamentos</h2>
+<p>Todas as cobranças geradas pelo bot, com a forma de pagamento e a situação.</p>
+<ul>
+  <li><b>Pix automático e cartão:</b> são confirmados sozinhos pelo Mercado Pago (pelo webhook ou pela conferência automática). "Verificar no MP" consulta na hora.</li>
+  <li><b>Pix manual:</b> o assinante envia o comprovante pelo bot. Abra o <b>Comprovante</b>, confira no seu banco e clique em <b>Aprovar</b> ou <b>Recusar</b>.</li>
+  <li><b>Aprovar</b> libera o acesso e envia o convite do grupo; <b>Recusar</b> avisa o assinante e oferece os planos de novo.</li>
+  <li><b>PayPal:</b> depois que o comprador aprova, o bot captura o valor e libera o acesso sozinho. O valor aparece na moeda cobrada e não entra na receita em reais. Se ficar pendente, confira na sua conta PayPal se a moeda está liberada para recebimento.</li>
+  <li><b>Recorrente:</b> cada cobrança mensal do cartão aparece como um novo pagamento aprovado.</li>
+  <li>Cobranças não pagas expiram sozinhas depois de um tempo.</li>
+  <li>Use os filtros para ver só pendentes, só Pix manual etc.</li>
+</ul>
+{% endblock %}
+{% block content %}
+<h1>Pagamentos {% include "_help_button.html" %}</h1>
+<div class="card">
+  <form method="get" class="filters">
+    <select name="status" data-autosubmit>
+      <option value="">Todos os status</option>
+      {% for key, label in PAYMENT_STATUS_LABELS.items() %}
+        <option value="{{ key }}" {{ 'selected' if status == key }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="method" data-autosubmit>
+      <option value="">Todas as formas</option>
+      {% for key, label in METHOD_LABELS.items() %}
+        <option value="{{ key }}" {{ 'selected' if method == key }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Data</th><th>Membro</th><th>Plano</th><th>Valor</th><th>Forma</th><th>Status</th><th>Pago em</th><th>Ações</th></tr></thead>
+    <tbody>
+    {% for p, m in rows %}
+      <tr>
+        <td>{{ p.id }}</td>
+        <td>{{ p.created_at | datetime }}</td>
+        <td>{{ m.display_name }}<br><small class="muted">{{ m.telegram_id }}</small></td>
+        <td>{{ plans[p.plan_code].name if p.plan_code in plans else p.plan_code }}</td>
+        <td>{{ p.amount_cents | money(p.currency) }}</td>
+        <td>{{ METHOD_LABELS.get(p.method, p.method) }}</td>
+        <td><span class="tag {{ {'approved': 'ok', 'rejected': 'error', 'pending': 'warn'}.get(p.status, '') }}">{{ PAYMENT_STATUS_LABELS.get(p.status, p.status) }}</span></td>
+        <td>{{ p.paid_at | datetime }}</td>
+        <td class="actions">
+          {% if p.proof_file_id %}<a class="btn sm" href="/pagamentos/{{ p.id }}/comprovante" target="_blank">Comprovante</a>{% endif %}
+          {% if p.status == "pending" %}
+            {% if p.method in ("pix", "card", "card_recurring", "paypal") %}
+              <form method="post" action="/pagamentos/{{ p.id }}/verificar" class="inline"><button class="btn sm">{{ 'Verificar no PayPal' if p.method == 'paypal' else 'Verificar no MP' }}</button></form>
+            {% endif %}
+            <form method="post" action="/pagamentos/{{ p.id }}/aprovar" class="inline" data-confirm="Aprovar e liberar acesso?"><button class="btn sm primary">Aprovar</button></form>
+            <form method="post" action="/pagamentos/{{ p.id }}/recusar" class="inline"><button class="btn sm danger">Recusar</button></form>
+          {% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="9">
+        {% set empty_title = "Nenhum pagamento por aqui" %}
+        {% set empty_text = "As cobranças geradas pelo bot aparecem nesta lista." %}
+        {% include "_empty.html" %}
+      </td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Relatórios{% endblock %}
+{% block help %}
+<h2>Como funciona: Relatórios</h2>
+<ul>
+  <li>Escolha o período e veja quantas pessoas entraram e saíram do grupo, e quanto você vendeu.</li>
+  <li><b>Baixar PDF</b> gera um resumo pronto para guardar ou mandar. <b>Baixar Excel</b> traz os números dia a dia, toda a atividade e os pagamentos, cada um em uma aba.</li>
+  <li>As entradas e saídas passaram a ser registradas com o bot rodando nesta versão; períodos anteriores podem aparecer vazios.</li>
+  <li>Valores recebidos em moeda estrangeira aparecem separados, sem conversão.</li>
+</ul>
+{% endblock %}
+{% block content %}
+<h1>Relatórios {% include "_help_button.html" %}</h1>
+<section class="card stack" aria-label="Montar relatório">
+  <div class="seg-group" role="group" aria-label="Período">
+    {% for d in periods %}<a class="seg {{ 'on' if r.days == d }}" href="/relatorios?dias={{ d }}"{% if r.days == d %} aria-current="true"{% endif %}>Últimos {{ d }} dias</a>{% endfor %}
+  </div>
+  <div class="kpis">
+    <div class="kpi"><span>Entraram</span><strong>{{ r.joined }}</strong></div>
+    <div class="kpi"><span>Saíram</span><strong>{{ r.left }}</strong></div>
+    <div class="kpi"><span>Ganho no período</span><strong>{{ '%+d' % r.net }}</strong></div>
+    <div class="kpi"><span>Vendas</span><strong>{{ r.revenue_cents | brl }}</strong><small>{{ r.sales }} pagamento(s){% for c, v in r.foreign.items() %} · {{ v | money(c) }}{% endfor %}</small></div>
+  </div>
+  <div class="actions">
+    <a class="btn primary btn-lg" href="/relatorios/exportar.pdf?dias={{ r.days }}" download>Baixar PDF</a>
+    <a class="btn btn-lg" href="/relatorios/exportar.xlsx?dias={{ r.days }}" download>Baixar Excel</a>
+  </div>
+</section>
+<section class="card" aria-labelledby="aconteceu">
+  <h2 id="aconteceu">O que aconteceu nesse período</h2>
+  <ul class="highlights">{% for h in r.highlights %}<li>{{ h }}</li>{% endfor %}</ul>
+</section>
+{% endblock %}

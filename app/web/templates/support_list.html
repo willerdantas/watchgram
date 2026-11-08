@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Ajuda{% endblock %}
+{% block help %}
+<h2>Como funciona: Ajuda</h2>
+{% if user.is_superadmin %}
+<p>Aqui chegam os pedidos de ajuda de todos os usuários. Cada pedido é uma conversa separada, com o histórico completo.</p>
+<ul>
+  <li><b>Aguardando o suporte:</b> pedidos novos ou em que o usuário respondeu. Abra e responda.</li>
+  <li>Ao responder, o pedido passa para <b>Aguardando o usuário</b>: ele aprova a solução ou diz que não resolveu.</li>
+  <li>Se o usuário não responder em <b>48 horas</b>, o pedido é encerrado automaticamente como <b>Encerrado sem resposta</b>.</li>
+  <li>Você recebe um aviso (e-mail e Telegram do seu bot) a cada pedido novo, mensagem ou decisão do usuário.</li>
+</ul>
+{% else %}
+<p>Precisa de ajuda com o painel ou com o bot? Abra um pedido: cada pedido vira uma conversa separada com o suporte, e todo o histórico fica guardado aqui.</p>
+<ul>
+  <li><b>Novo pedido:</b> escreva o assunto e descreva o problema. Você pode mandar mais mensagens na conversa enquanto ela estiver aberta.</li>
+  <li>Quando o suporte responder, você recebe um aviso por e-mail e pelo seu bot, e o pedido fica <b>Aguardando sua aprovação</b>.</li>
+  <li><b>Aprovar a solução</b> encerra o pedido como resolvido. <b>Não resolveu</b> devolve o pedido ao suporte, com o seu comentário.</li>
+  <li>Se você não aprovar nem recusar em <b>48 horas</b>, o pedido é encerrado automaticamente. Se ainda precisar, é só abrir outro.</li>
+  <li>Pedidos encerrados ficam no histórico (filtro "Encerrados"), mas não recebem novas mensagens.</li>
+</ul>
+{% endif %}
+{% endblock %}
+{% block content %}
+<h1>Ajuda {% include "_help_button.html" %}</h1>
+
+<div class="card">
+  <div class="filters">
+    <a class="btn sm {{ 'primary' if filtro == 'ativos' }}" href="/ajuda?filtro=ativos">
+      Em andamento ({{ counts.get('open', 0) + counts.get('answered', 0) }})</a>
+    <a class="btn sm {{ 'primary' if filtro == 'encerrados' }}" href="/ajuda?filtro=encerrados">
+      Encerrados ({{ counts.get('resolved', 0) + counts.get('closed', 0) }})</a>
+    <a class="btn sm {{ 'primary' if filtro == 'todos' }}" href="/ajuda?filtro=todos">Todos</a>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Assunto</th>{% if user.is_superadmin %}<th>Usuário</th>{% endif %}<th>Situação</th><th>Atualizado</th></tr></thead>
+    <tbody>
+    {% for t in tickets %}
+      <tr>
+        <td>{{ t.id }}</td>
+        <td><a href="/ajuda/{{ t.id }}"><b>{{ t.subject }}</b></a></td>
+        {% if user.is_superadmin %}<td>{{ t.user.username }}</td>{% endif %}
+        <td><span class="tag {{ {'open': 'warn' if user.is_superadmin else '', 'answered': '' if user.is_superadmin else 'warn', 'resolved': 'ok', 'closed': ''}[t.status] }}">{{ labels[t.status] }}</span></td>
+        <td>{{ t.updated_at | datetime }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5">
+        {% set empty_title = "Nenhum pedido" ~ (" em andamento" if filtro == "ativos" else "") %}
+        {% set empty_text = "Os pedidos aparecem aqui." if user.is_superadmin else "Precisa de ajuda? Abra um pedido e o suporte responde por aqui." %}
+        {% set empty_href = None if user.is_superadmin else "#novo" %}
+        {% set empty_action = "Abrir um pedido" %}
+        {% include "_empty.html" %}
+      </td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+{% if not user.is_superadmin %}
+<form method="post" action="/ajuda" class="card" id="novo">
+  <h2>Novo pedido de ajuda</h2>
+  <div class="stack">
+    <label>Assunto <input name="subject" maxlength="{{ max_subject }}" required placeholder="Ex.: o bot não envia o convite do grupo"></label>
+    <label>Descreva o que precisa
+      <textarea name="text" rows="5" maxlength="{{ max_text }}" required
+                placeholder="Conte o que aconteceu, o que esperava e, se possível, o nome do membro ou o número do pagamento."></textarea>
+    </label>
+    <div class="actions"><button class="btn primary">Abrir pedido</button></div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

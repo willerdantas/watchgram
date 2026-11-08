@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Plataforma{% endblock %}
+{% block help %}
+<h2>Como funciona: Plataforma</h2>
+<p>Configura quanto e como os usuários pagam para manter o bot funcionando.</p>
+<ul>
+  <li><b>Mercado Pago da plataforma:</b> o access token da conta que recebe os pagamentos dos usuários. Cadastre o webhook para confirmação instantânea.</li>
+  <li><b>Teste grátis:</b> quantos dias um usuário novo ganha ao ser criado.</li>
+  <li><b>Lembretes:</b> em quantos dias antes do vencimento o usuário é avisado (por e-mail e pelo bot dele).</li>
+  <li><b>E-mail (SMTP):</b> servidor que envia os lembretes. Salve e use "Enviar teste" para conferir.</li>
+  <li><b>Planos:</b> nome, valor e duração de cada plano; desmarque "ativo" para escondê-lo.</li>
+  <li>Você (superadmin) e os usuários isentos não pagam.</li>
+</ul>
+{% endblock %}
+{% block content %}
+<h1>Assinatura da plataforma {% include "_help_button.html" %}</h1>
+<div class="card">
+  <p>Os usuários pagam estes planos para manter o <b>bot</b> funcionando. Com a assinatura vencida, só o bot
+    para; o painel continua acessível para renovar. Você (superadmin) e quem você isentar em Usuários não pagam.</p>
+</div>
+<form method="post" action="/admin/plataforma">
+  <div class="grid2">
+    <div class="card stack">
+      <h2>Mercado Pago da plataforma</h2>
+      <label>Access token (recebe os pagamentos dos usuários)
+        <input name="mp_access_token" type="password" autocomplete="off"
+               placeholder="{{ '•••••••• salvo — deixe em branco para manter' if secrets.mp_access_token else 'APP_USR-...' }}">
+      </label>
+      {% if secrets.mp_access_token %}<label class="check"><input type="checkbox" name="clear_mp_access_token"> apagar token salvo</label>{% endif %}
+      {% if webhook_url %}
+        <p class="muted">Webhook da plataforma (eventos <i>Pagamentos</i>):<br><code>{{ webhook_url }}</code></p>
+      {% else %}
+        <p class="muted">Sem PUBLIC_URL, os pagamentos são conferidos no Mercado Pago a cada 20 s.</p>
+      {% endif %}
+      <label>Assinatura secreta do webhook (opcional)
+        <input name="mp_webhook_secret" type="password" autocomplete="off"
+               placeholder="{{ '•••••••• salva' if secrets.mp_webhook_secret else 'chave secreta das notificações' }}">
+      </label>
+    </div>
+    <div class="card stack">
+      <h2>Novos usuários e lembretes</h2>
+      <label>Dias de teste grátis
+        <input type="number" name="trial_days" value="{{ settings.trial_days }}" min="0" max="3650">
+        <small class="muted">Contados a partir da criação do usuário. 0 = sem teste: o bot só funciona após o primeiro pagamento ou liberação manual.</small>
+      </label>
+      <label class="check"><input type="checkbox" name="signup_enabled" {{ 'checked' if settings.signup_enabled == '1' }}> Permitir cadastro pelo site</label>
+      <small class="muted">Desligado, a página inicial leva só ao login e as contas são criadas por você em Usuários.</small>
+      <label>Lembretes de vencimento (dias antes)
+        <input name="reminder_days" value="{{ settings.reminder_days }}" placeholder="7,3,1,0">
+        <small class="muted">Enviados por e-mail e pelo bot do próprio usuário (para os ids de admin dele). 0 = no dia.
+          Quem tem renovação automática não recebe. Ao vencer, sai um aviso de bot parado.</small>
+      </label>
+    </div>
+  </div>
+
+  <div class="card stack">
+    <h2>E-mail (SMTP)</h2>
+    <p class="muted">Usado para os lembretes de vencimento. Ex.: Gmail (smtp.gmail.com, porta 587, senha de app), Brevo, Amazon SES.</p>
+    <div class="grid3">
+      <label>Servidor <input name="smtp_host" value="{{ settings.smtp_host }}" placeholder="smtp.gmail.com"></label>
+      <label>Porta <input type="number" name="smtp_port" value="{{ settings.smtp_port }}" min="1" max="65535"></label>
+      <label>Remetente <input name="smtp_from" value="{{ settings.smtp_from }}" placeholder="Plataforma &lt;nao-responda@seudominio.com.br&gt;"></label>
+      <label>Usuário <input name="smtp_user" value="{{ settings.smtp_user }}" autocomplete="off"></label>
+      <label>Senha
+        <input name="smtp_password" type="password" autocomplete="off"
+               placeholder="{{ '•••••••• salva — deixe em branco para manter' if secrets.smtp_password else 'senha ou senha de app' }}">
+      </label>
+      <label class="check"><input type="checkbox" name="smtp_tls" {{ 'checked' if settings.smtp_tls == '1' }}> STARTTLS (porta 587)</label>
+    </div>
+    {% if secrets.smtp_password %}<label class="check"><input type="checkbox" name="clear_smtp_password"> apagar senha salva</label>{% endif %}
+    <div class="row">
+      <label>Enviar e-mail de teste para <input type="email" name="test_to" placeholder="voce@email.com"></label>
+      <div class="actions"><button class="btn" formaction="/admin/plataforma/testar-email" formnovalidate>Enviar teste</button></div>
+    </div>
+  </div>
+
+  <h2>Planos</h2>
+  <section class="grid3">
+  {% for p in plans %}
+    <div class="card stack">
+      <div class="card-head">
+        <h2>{{ p.name }}</h2>
+        <label class="switch"><input type="checkbox" name="{{ p.code }}_active" {{ 'checked' if p.active }}> ativo</label>
+      </div>
+      <label>Nome <input name="{{ p.code }}_name" value="{{ p.name }}" maxlength="64"></label>
+      <div class="row">
+        <label>Valor (R$) <input name="{{ p.code }}_price" value="{{ '%.2f'|format(p.price_cents / 100) | replace('.', ',') }}" inputmode="decimal" required></label>
+        <label>Dias <input type="number" name="{{ p.code }}_days" value="{{ p.days }}" min="1" max="3650" required></label>
+      </div>
+    </div>
+  {% endfor %}
+  </section>
+  <div class="sticky-save"><button class="btn primary">Salvar</button></div>
+</form>
+{% endblock %}
